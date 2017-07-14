@@ -24,6 +24,8 @@ import threading
 import webbrowser
 from flask import Flask, request
 from docopt import docopt
+import progressbar
+import progressbar.widgets
 
 
 PORT = 5991
@@ -78,9 +80,25 @@ class FmiGribLoader(object):
             return
         formatted_params = ",".join(params)
         response = requests.get("http://data.fmi.fi/fmi-apikey/%s/download?producer=hirlam&param=%s&bbox=%s,%s,%s,%s&origintime=%s&starttime=%s&endtime=%s&format=grib2&projection=epsg:4326" % (self.apikey, formatted_params, left_longitude, left_latitude, right_longitude, right_latitude, origin_time, start_time, end_time), stream=True)
+        total_size = 0
+        bar = progressbar.ProgressBar(max_value=3500000, widgets=[
+                progressbar.widgets.Percentage(),
+                ' of ', progressbar.widgets.DataSize('max_value'),
+                ' ', progressbar.widgets.Bar(),
+                ' ', progressbar.widgets.Timer(),
+                ' ', progressbar.FileTransferSpeed()
+        ])
+        bar.start()
         for chunk in response.iter_content(chunk_size=1024):
             if chunk:
+                total_size += len(chunk)
                 out_file.write(chunk)
+                try:
+                    bar.update(total_size)
+                except ValueError:
+                    bar.max_value = total_size + 1
+                    bar.update(total_size)
+        bar.finish()
 
     def overwrite_grib_file(self, filename):
         if not os.path.exists(filename):
