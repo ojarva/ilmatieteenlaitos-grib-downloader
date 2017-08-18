@@ -28,17 +28,25 @@ import progressbar
 import progressbar.widgets
 
 
+PYTHON3 = sys.version_info[0] == 3
+
 PORT = 5991
 
 def unicode_csv_reader(unicode_csv_data, dialect=csv.excel, **kwargs):
     csv_reader = csv.reader(utf_8_encoder(unicode_csv_data),
                             dialect=dialect, **kwargs)
     for row in csv_reader:
-        yield [unicode(cell, 'utf-8') for cell in row]
+        if PYTHON3:
+            yield row
+        else:
+            yield [unicode(cell, 'utf-8') for cell in row]
 
 def utf_8_encoder(unicode_csv_data):
     for line in unicode_csv_data:
-        yield line.encode('utf-8')
+        if PYTHON3:
+            yield line
+        else:
+            yield line.encode('utf-8')
 
 def search_city(keyword):
     keyword_lower = keyword.lower()
@@ -132,7 +140,11 @@ class FmiGribLoader(object):
         if not self.overwrite_grib_file(filename):
             return
         print("Downloading grib with origin time %s and coordinates %s" % (origin_time, coordinates))
-        self.download_grib(open(filename, "w"), origin_time, start_time, end_time, left_latitude, left_longitude, right_latitude, right_longitude)
+        if PYTHON3:
+            out_file = open(filename, "wb")
+        else:
+            out_file = open(filename, "w")
+        self.download_grib(out_file, origin_time, start_time, end_time, left_latitude, left_longitude, right_latitude, right_longitude)
 
 
 app = Flask(__name__)
@@ -160,7 +172,9 @@ if __name__ == '__main__':
     a = FmiGribLoader(arguments["--apikey"])
     if arguments["latest"]:
         if arguments["--city"]:
-            keyword = arguments["--city"].decode("utf-8")
+            keyword = arguments["--city"]
+            if not PYTHON3:
+                keyword = keyword.decode("utf-8")
             matches = search_city(keyword)
             if len(matches) > 1:
                 for i, match in enumerate(matches):
